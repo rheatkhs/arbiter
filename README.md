@@ -2,7 +2,7 @@
 
 **Arbiter** is a high-performance, type-safe Room & Agenda Booking System backend designed to handle high-concurrency requests and prevent double-booking conflicts with precision.
 
-Built with modern web technologies, Arbiter ensures rigorous data integrity and provides a seamless developer experience.
+Built with modern web technologies, Arbiter ensures rigorous data integrity and provides a seamless developer experience with built-in authentication and documentation.
 
 ## 🚀 Tech Stack
 
@@ -10,15 +10,16 @@ Built with modern web technologies, Arbiter ensures rigorous data integrity and 
 - **Framework:** [ElysiaJS](https://elysiajs.com) - Ergonomic web framework for Bun
 - **Database:** MySQL
 - **ORM:** [Drizzle ORM](https://orm.drizzle.team) - Lightweight SQL-like ORM
-- **Validation:** TypeBox (`t`) - Strict input validation
+- **Auth:** [Better Auth](https://better-auth.com) - Secure authentication
 - **Documentation:** Swagger (via `@elysiajs/swagger`)
 
 ## ✨ Key Features
 
 - **Double-booking Prevention:** Core "Arbiter" logic ensures no two bookings can overlap for the same room.
-- **Transactional Integrity:** Uses database checks to guarantee consistency.
-- **Modular Architecture:** Clean separation of concerns (Modules, Services, Controllers).
+- **Role-Based Access Control (RBAC):** Admin-only approval workflows.
+- **Secure Authentication:** Built-in Email/Password authentication.
 - **Type-Safe API:** End-to-end type safety from database to API response.
+- **Production Ready:** Includes robust configuration validation, security middleware (CORS, Helmet compatibility), and global error handling.
 
 ## 🛠️ Getting Started
 
@@ -39,7 +40,16 @@ bun install
 
 ### 2. Environment Setup
 
-Configure your database credentials in `.env` or modify `src/db/index.ts` / `drizzle.config.ts` (defaults to localhost/root/empty/arbiter_db).
+Create a `.env` file in the root directory (optional overrides, defaults exist for local dev):
+
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=arbiter_db
+BETTER_AUTH_SECRET=your_secret_key
+PORT=3000
+```
 
 ### 3. Database Migration
 
@@ -53,7 +63,7 @@ bun run db:generate
 bun run db:push
 ```
 
-### 4. Seeding Data (Optional)
+### 4. Seeding Data
 
 Populate your database with test data (Users, Rooms, Bookings):
 
@@ -74,29 +84,71 @@ The server will start at `http://localhost:3000`.
 ## 📖 API Documentation
 
 Arbiter comes with built-in Swagger documentation.
+Visit **[http://localhost:3000/swagger](http://localhost:3000/swagger)** to explore and test endpoints.
 
-1. Start the server.
-2. Visit **[http://localhost:3000/swagger](http://localhost:3000/swagger)** to explore and interact with the API.
+### 🔐 Authentication
 
-### Core Endpoints
+This app uses **Better Auth**. You must authenticate to create bookings.
 
-- **`POST /bookings`**: Create a new booking.
-  - *Payload:* `userId`, `roomId`, `title`, `startTime`, `endTime`
-  - *Returns:* `201 Created` or `409 Conflict` if the slot is taken.
-- **`GET /rooms`**: List all available rooms.
-- **`GET /bookings`**: List bookings. Supports `from` and `to` query parameters for date filtering.
+#### Sign Up
+```bash
+POST /api/auth/sign-up/email
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "name": "John Doe"
+}
+```
+
+#### Sign In
+```bash
+POST /api/auth/sign-in/email
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+*Response will include a Session Cookie. Include this cookie in subsequent requests.*
+
+### 📅 Booking Workflow
+
+#### 1. List Rooms
+**Public Endpoint**
+```http
+GET /rooms
+```
+
+#### 2. Create Booking
+**Requires Auth (User/Admin)**
+```http
+POST /bookings
+Content-Type: application/json
+
+{
+  "roomId": 1,
+  "title": "Strategy Meeting",
+  "startTime": "2024-06-01T10:00:00Z",
+  "endTime": "2024-06-01T11:00:00Z"
+}
+```
+
+#### 3. Approve Booking
+**Requires Auth (Admin Only)**
+```http
+PATCH /bookings/{id}/approve
+```
 
 ## 📂 Project Structure
 
 ```
 src/
-├── db/                 # Database configuration and schema
-│   ├── schema.ts       # Drizzle schema definitions
-│   ├── index.ts        # Database connection
-│   └── seed.ts         # Data seeder
-├── modules/            # Domain-specific modules
-│   ├── booking/        # Booking logic and controller
-│   └── room/           # Room controller
+├── config.ts           # Configuration validation
+├── auth.ts             # Better Auth setup
+├── db/                 # Database layer (Schema, Connection, Seed)
+├── modules/            
+│   ├── booking/        # Booking Service & Controller
+│   ├── room/           # Room Service & Controller
+│   └── auth/           # Auth Middleware/Macro
 └── index.ts            # Application entry point
 ```
 

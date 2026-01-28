@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, datetime, mysqlEnum, boolean, timestamp, text } from 'drizzle-orm/mysql-core';
+import { mysqlTable, int, varchar, datetime, mysqlEnum, boolean, timestamp, text, index } from 'drizzle-orm/mysql-core';
 import { sql } from 'drizzle-orm';
 
 // Better Auth Tables
@@ -68,4 +68,9 @@ export const bookings = mysqlTable('bookings', {
   startTime: datetime('start_time').notNull(),
   endTime: datetime('end_time').notNull(),
   status: mysqlEnum('status', ['pending', 'confirmed', 'rejected']).default('pending')
+}, (table) => {
+  return {
+    bookingRoomTimeIdx: index('booking_room_time_idx').on(table.roomId, table.startTime, table.endTime),
+    bookingUserIdx: index('booking_user_idx').on(table.userId)
+  };
 });
