@@ -1,10 +1,15 @@
 import { Elysia, t } from 'elysia';
 import { bookingService } from './booking.service';
+import { authMiddleware } from '../auth/middleware';
+import { db } from '../../db';
+import { bookings } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
 export const bookingController = new Elysia({ prefix: '/bookings' })
-    .post('/', async ({ body, set }) => {
+    .use(authMiddleware)
+    .post('/', async ({ body, set, user }) => {
         try {
-            const { userId, roomId, title, startTime, endTime } = body;
+            const { roomId, title, startTime, endTime } = body;
 
             const start = new Date(startTime);
             const end = new Date(endTime);
@@ -14,8 +19,9 @@ export const bookingController = new Elysia({ prefix: '/bookings' })
                 return { error: 'Start time must be before end time' };
             }
 
+            // Use the authenticated user's ID
             const bookingId = await bookingService.createBooking({
-                userId,
+                userId: user!.id, // Guaranteed by isSignedIn guard
                 roomId,
                 title,
                 startTime: start,
@@ -34,8 +40,8 @@ export const bookingController = new Elysia({ prefix: '/bookings' })
             return { error: 'Internal Server Error' };
         }
     }, {
+        isSignedIn: true, // Auth Guard
         body: t.Object({
-            userId: t.Number(),
             roomId: t.Number(),
             title: t.String(),
             startTime: t.String({ format: 'date-time' }),
@@ -52,12 +58,33 @@ export const bookingController = new Elysia({ prefix: '/bookings' })
 
         return await bookingService.getBookings({ from, to });
     }, {
+        isSignedIn: true, // Auth Guard
         query: t.Object({
             from: t.Optional(t.String({ format: 'date-time' })),
             to: t.Optional(t.String({ format: 'date-time' }))
         }),
         detail: {
             summary: 'List bookings',
+            tags: ['Bookings']
+        }
+    })
+    .patch('/:id/approve', async ({ params, set }) => {
+        // Logic for approving booking
+        // Ideally move to service, but staying simple here
+        const bookingId = parseInt(params.id);
+
+        await db.update(bookings)
+            .set({ status: 'confirmed' })
+            .where(eq(bookings.id, bookingId));
+
+        return { message: 'Booking approved' };
+    }, {
+        item: 'admin', // Admin Guard
+        params: t.Object({
+            id: t.String()
+        }),
+        detail: {
+            summary: 'Approve a booking',
             tags: ['Bookings']
         }
     });

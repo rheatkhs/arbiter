@@ -1,5 +1,5 @@
 import { db } from './index';
-import { users, rooms, bookings } from './schema';
+import { users, rooms, bookings, accounts } from './schema';
 import { faker } from '@faker-js/faker';
 
 async function seed() {
@@ -7,20 +7,46 @@ async function seed() {
 
     // 1. Create Users
     const usersData: (typeof users.$inferInsert)[] = [];
+    const accountsData: (typeof accounts.$inferInsert)[] = [];
+
     for (let i = 0; i < 20; i++) {
+        const userId = faker.string.uuid();
+        const email = faker.internet.email();
+        const name = faker.person.fullName();
+        const role = faker.helpers.arrayElement(['admin', 'user']);
+        const now = new Date();
+
         usersData.push({
-            name: faker.person.fullName(),
-            email: faker.internet.email(),
-            role: faker.helpers.arrayElement(['admin', 'user']),
+            id: userId,
+            name: name,
+            email: email,
+            emailVerified: true,
+            image: faker.image.avatar(),
+            createdAt: now,
+            updatedAt: now,
+            role: role as 'admin' | 'user'
+        });
+
+        // Mock account for Better Auth (Password login usually requires an account or just password in some configs, but better-auth often uses 'account' table for providers, email/pass might store hash elsewhere or in account depending on config. 
+        // Wait, Better Auth with email/password usually stores password hash in `account` table with providerId='credential' or similar? 
+        // Actually, strictly better-auth v1 stores password in `account` table for `credential` provider.
+        // Let's create a fake account entry so they can potentially login if we knew the hash. 
+        // For seeding, we might just want rows to exist for foreign keys.
+        accountsData.push({
+            id: faker.string.uuid(),
+            userId: userId,
+            accountId: userId, // often same as user id for credential
+            providerId: "credential",
+            password: "$2a$10$YourHashedPasswordHere", // Placeholder hash
+            createdAt: now,
+            updatedAt: now,
         });
     }
+
     await db.insert(users).values(usersData);
+    await db.insert(accounts).values(accountsData);
     console.log('✅ Created 20 users');
 
-    // We need to fetch the created users to get their IDs for bookings
-    // (In a real scenario w/ strict foreign keys, we need valid IDs)
-    // Limited to the ones we just inserted or all existing.
-    // For simplicity, let's fetch all users.
     const allUsers = await db.select().from(users);
 
     // 2. Create Rooms
@@ -30,7 +56,7 @@ async function seed() {
             name: `${faker.commerce.department()} Room`,
             capacity: faker.number.int({ min: 5, max: 50 }),
             location: `Floor ${faker.number.int({ min: 1, max: 10 })}`,
-            isActive: true, // simplified
+            isActive: true,
         });
     }
     await db.insert(rooms).values(roomsData);
@@ -44,9 +70,9 @@ async function seed() {
         const user = faker.helpers.arrayElement(allUsers);
         const room = faker.helpers.arrayElement(allRooms);
 
-        // Future dates to ensure they show up in lists usually
+        // Future dates
         const startTime = faker.date.soon({ days: 30 });
-        const endTime = new Date(startTime.getTime() + faker.number.int({ min: 30, max: 180 }) * 60000); // 30-180 mins later
+        const endTime = new Date(startTime.getTime() + faker.number.int({ min: 30, max: 180 }) * 60000);
 
         bookingsData.push({
             userId: user.id,
@@ -58,10 +84,6 @@ async function seed() {
         });
     }
 
-    // Note: This bulk insert might strictly violate the "Arbiter" no-overlap logic if purely random.
-    // But for seeding "100 data" quickly, we usually bypass complex business logic validation on the DB level 
-    // unless we use the service. Using `db.insert` bypasses the service check. 
-    // This is acceptable for seed data unless strict constraints exist in DB triggers (which we don't have).
     await db.insert(bookings).values(bookingsData);
     console.log('✅ Created 70 bookings');
 

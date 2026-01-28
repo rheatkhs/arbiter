@@ -30,7 +30,7 @@ export class BookingService {
     }
 
     async createBooking(data: {
-        userId: number;
+        userId: string;
         roomId: number;
         title: string;
         startTime: Date;
